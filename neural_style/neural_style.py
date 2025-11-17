@@ -29,12 +29,13 @@ def check_paths(args):
 
 
 def train(args):
-    if args.accel:
-        device = torch.accelerator.current_accelerator()
+    # 修复设备选择逻辑
+    if args.accel and torch.cuda.is_available():
+        device = torch.device("cuda")
+        print("Using CUDA acceleration")
     else:
         device = torch.device("cpu")
-
-    print(f"Using device: {device}")
+        print("Using CPU")
 
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -125,12 +126,13 @@ def train(args):
 
 
 def stylize(args):
-    if args.accel:
-        device = torch.accelerator.current_accelerator()
+    # 修复设备选择逻辑
+    if args.accel and torch.cuda.is_available():
+        device = torch.device("cuda")
+        print("Using CUDA acceleration")
     else:
         device = torch.device("cpu")
-    
-    print(f"Using device: {device}")
+        print("Using CPU")
 
     content_image = utils.load_image(args.content_image, scale=args.content_scale)
     content_transform = transforms.Compose([
@@ -211,7 +213,7 @@ def main():
     train_arg_parser.add_argument("--style-size", type=int, default=None,
                                   help="size of style-image, default is the original size of style image")
     train_arg_parser.add_argument('--accel', action='store_true',
-                                  help='use accelerator')
+                                  help='use CUDA acceleration if available')
     train_arg_parser.add_argument("--seed", type=int, default=42,
                                   help="random seed for training")
     train_arg_parser.add_argument("--content-weight", type=float, default=1e5,
@@ -237,18 +239,20 @@ def main():
     eval_arg_parser.add_argument("--export_onnx", type=str,
                                  help="export ONNX model to a given file")
     eval_arg_parser.add_argument('--accel', action='store_true',
-                                 help='use accelerator')
+                                 help='use CUDA acceleration if available')
 
     args = main_arg_parser.parse_args()
 
     if args.subcommand is None:
         print("ERROR: specify either train or eval")
         sys.exit(1)
-    if args.accel and not torch.accelerator.is_available():
-        print("ERROR: accelerator is not available, try running on CPU")
+    
+    # 修复加速器检查逻辑
+    if args.accel and not torch.cuda.is_available():
+        print("ERROR: CUDA acceleration is not available, try running on CPU")
         sys.exit(1)
-    if not args.accel and torch.accelerator.is_available():
-        print("WARNING: accelerator is available, run with --accel to enable it")
+    if not args.accel and torch.cuda.is_available():
+        print("WARNING: CUDA is available, run with --accel to enable acceleration")
 
     if args.subcommand == "train":
         check_paths(args)

@@ -37,7 +37,7 @@ You do **NOT** need to install COCO manually.
 Run the script:
 
 ```
-python neural_style/download_coco_fiftyone.py
+python neural_style/download_and_prepare_coco.py
 ```
 
 This script will:
@@ -107,6 +107,66 @@ For example:
 - 120  → fastest, enough for demo
 - 1,000 → recommended
 - 12,000 → closest to real training, but slower(total 118k)
+
+## Model Training Guide
+
+After downloading dataset, the project provide two ways to train the model(CPU,GPU)
+### 1. Environment Setup
+#### CPU
+```
+# create venv
+python -m venv .venv
+
+# activate venv
+.venv\Scripts\Activate.ps1
+
+# install dependence
+pip install -r requirements.txt
+```
+#### GPU
+```
+# create venv
+python -m venv .venv
+
+# activate venv
+.venv\Scripts\Activate.ps1
+
+# install numpy
+pip install numpy
+
+# install torch based on cuda
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+```
+
+### 2. Prepare Dataset
+Based on environment, your dataset directory will contain: 
+
+```
+dataset/
+  contents/
+    train/
+      00000001.jpg
+      00000002.jpg
+      ...
+  style/
+    1.jpg
+    2.jpg
+```
+### 3. Training Data
+After preparing environment and dataset, training the model use the command as followed
+```
+python neural_style/neural_style.py train --dataset dataset/contents --style-image dataset/style/1.jpg --save-model-dir saved_models --epochs 100 --batch-size 2 --image-size 128 --accel
+```
+changing batch-size and image-size if your GPU has enough video memory
+--accel :use GPU or not
+
+### 4. running
+
+using commend as followed
+```
+python neural_style/neural_style.py eval --content-image test.png --model <model_path> --output-image <output_path> --accel
+```
+
 
 ## 📘数据集下载指南
 
