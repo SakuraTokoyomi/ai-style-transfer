@@ -37,7 +37,7 @@ You do **NOT** need to install COCO manually.
 Run the script:
 
 ```
-python neural_style/download_and_prepare_coco.py
+python neural_style/download_coco_fiftyone.py
 ```
 
 This script will:
