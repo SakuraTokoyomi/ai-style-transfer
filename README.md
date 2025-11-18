@@ -160,13 +160,19 @@ python neural_style/neural_style.py train --dataset dataset/contents --style-ima
 changing batch-size and image-size if your GPU has enough video memory
 --accel :use GPU or not
 
-### 4. running
+### 4. running for picture
 
 using commend as followed
 ```
 python neural_style/neural_style.py eval --content-image test.png --model <model_path> --output-image <output_path> --accel
 ```
 
+### 5. running for video
+
+using commend as followed
+```
+python neural_style/neural_style.py video --content-video test_video.mp4 --model <model_path> --output-video <output_path> --accel
+```
 
 ## 📘数据集下载指南
 

@@ -16,6 +16,10 @@ import utils
 from transformer_net import TransformerNet
 from vgg import Vgg16
 
+# 添加视频处理相关的导入
+import cv2
+from tqdm import tqdm
+
 
 def check_paths(args):
     try:
@@ -190,6 +194,101 @@ def stylize_onnx(content_image, args):
     return torch.from_numpy(img_out_y)
 
 
+def process_video(args):
+    """
+    处理视频文件，将风格迁移应用到每一帧
+    """
+    # 设备选择
+    if args.accel and torch.cuda.is_available():
+        device = torch.device("cuda")
+        print("Using CUDA acceleration for video processing")
+    else:
+        device = torch.device("cpu")
+        print("Using CPU for video processing")
+
+    # 加载模型
+    print("Loading style transfer model...")
+    style_model = TransformerNet()
+    state_dict = torch.load(args.model)
+    # remove saved deprecated running_* keys in InstanceNorm from the checkpoint
+    for k in list(state_dict.keys()):
+        if re.search(r'in\d+\.running_(mean|var)$', k):
+            del state_dict[k]
+    style_model.load_state_dict(state_dict)
+    style_model.to(device)
+    style_model.eval()
+
+    # 打开视频文件
+    print(f"Opening video file: {args.content_video}")
+    cap = cv2.VideoCapture(args.content_video)
+    
+    if not cap.isOpened():
+        print(f"Error: Could not open video file {args.content_video}")
+        return
+
+    # 获取视频信息
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
+    print(f"Video info: {width}x{height}, {fps:.2f} fps, {total_frames} frames")
+
+    # 创建视频写入器
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(args.output_video, fourcc, fps, (width, height))
+    
+    if not out.isOpened():
+        print(f"Error: Could not create output video file {args.output_video}")
+        cap.release()
+        return
+
+    # 定义图像转换
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Lambda(lambda x: x.mul(255))
+    ])
+
+    # 处理视频帧
+    print("Processing video frames...")
+    frame_count = 0
+    
+    with tqdm(total=total_frames, desc="Processing video") as pbar:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+                
+            # 转换BGR到RGB
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            # 转换为模型输入格式
+            input_tensor = transform(frame_rgb).unsqueeze(0).to(device)
+            
+            # 风格迁移
+            with torch.no_grad():
+                output_tensor = style_model(input_tensor).cpu()
+            
+            # 转换回图像格式
+            output_image = output_tensor[0].clone().clamp(0, 255).numpy()
+            output_image = output_image.transpose(1, 2, 0).astype(np.uint8)
+            
+            # 转换RGB到BGR
+            output_frame = cv2.cvtColor(output_image, cv2.COLOR_RGB2BGR)
+            
+            # 写入输出视频
+            out.write(output_frame)
+            
+            frame_count += 1
+            pbar.update(1)
+
+    # 释放资源
+    cap.release()
+    out.release()
+    print(f"Video processing completed! Output saved to: {args.output_video}")
+    print(f"Processed {frame_count} frames in total")
+
+
 def main():
     main_arg_parser = argparse.ArgumentParser(description="parser for fast-neural-style")
     subparsers = main_arg_parser.add_subparsers(title="subcommands", dest="subcommand")
@@ -241,10 +340,21 @@ def main():
     eval_arg_parser.add_argument('--accel', action='store_true',
                                  help='use CUDA acceleration if available')
 
+    # 添加视频处理子命令
+    video_arg_parser = subparsers.add_parser("video", help="parser for video stylizing arguments")
+    video_arg_parser.add_argument("--content-video", type=str, required=True,
+                                  help="path to content video you want to stylize")
+    video_arg_parser.add_argument("--output-video", type=str, required=True,
+                                  help="path for saving the output video")
+    video_arg_parser.add_argument("--model", type=str, required=True,
+                                  help="saved model to be used for stylizing the video")
+    video_arg_parser.add_argument('--accel', action='store_true',
+                                  help='use CUDA acceleration if available')
+
     args = main_arg_parser.parse_args()
 
     if args.subcommand is None:
-        print("ERROR: specify either train or eval")
+        print("ERROR: specify either train, eval, or video")
         sys.exit(1)
     
     # 修复加速器检查逻辑
@@ -257,8 +367,10 @@ def main():
     if args.subcommand == "train":
         check_paths(args)
         train(args)
-    else:
+    elif args.subcommand == "eval":
         stylize(args)
+    elif args.subcommand == "video":
+        process_video(args)
 
 
 if __name__ == "__main__":
