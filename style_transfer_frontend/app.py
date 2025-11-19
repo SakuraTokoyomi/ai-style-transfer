@@ -3,19 +3,20 @@ import gradio as gr
 import requests
 import tempfile
 import os
+import uuid
 from typing import Tuple
 
 # 后端API配置
-BACKEND_URL = ""  # 根据实际后端地址修改
+BACKEND_URL = "http://127.0.0.1:8000"  # 根据实际后端地址修改
 
 
 class StyleTransferFrontend:
     def __init__(self):
         self.fixed_styles = {
-            "Van Gogh": "vangogh",
-            "Picasso": "picasso",
-            "90s Anime": "anime90s",
-            "Ink Style": "ink"
+            "Candy": "candy",
+            "Mosaic": "mosaic",
+            "Rain Princess": "rain_princess",
+            "Udnie": "udnie",
         }
 
     def fixed_style_transfer(self, content_image, style_name: str) -> Tuple[str, str]:
@@ -77,7 +78,23 @@ class StyleTransferFrontend:
             return None, "请先上传视频文件"
 
         try:
-            files = {"video_file": open(video_file, "rb")}
+            if isinstance(video_file, dict):
+                # Gradio 3.x / 4.x 视频对象都会有 "name" 字段
+                # "name" 是实际文件路径
+                if "name" in video_file:
+                    video_path = video_file["name"]
+                elif "data" in video_file:
+                    video_path = video_file["data"]
+                else:
+                    return None, "无法解析上传的视频，请重试"
+
+            elif isinstance(video_file, str):
+                video_path = video_file
+
+            else:
+                return None, "视频路径格式无法识别"
+
+            files = {"video_file": open(video_path, "rb")}
             data = {"style_type": style_type}
 
             if style_type == "fixed":
@@ -111,10 +128,15 @@ class StyleTransferFrontend:
             return f.name
 
     def _save_temp_video(self, video_data: bytes) -> str:
-        """保存临时视频文件"""
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as f:
+        temp_dir = tempfile.gettempdir()
+        temp_path = os.path.join(temp_dir, f"video_{uuid.uuid4().hex}.mp4")
+
+        with open(temp_path, "wb") as f:
             f.write(video_data)
-            return f.name
+
+        print("前端保存的视频大小：", len(video_data))
+        print("实际写入的临时文件大小：", os.path.getsize(temp_path))
+        return temp_path
 
 
 def create_interface():
@@ -149,7 +171,7 @@ def create_interface():
                         fixed_style = gr.Dropdown(
                             choices=list(frontend.fixed_styles.keys()),
                             label="选择艺术风格",
-                            value="Van Gogh"
+                            value="Candy"
                         )
                         fixed_btn = gr.Button("开始风格迁移", variant="primary")
 
@@ -193,7 +215,8 @@ def create_interface():
                     with gr.Column():
                         video_input = gr.Video(
                             label="上传视频文件",
-                            sources=["upload"]
+                            sources=["upload"],
+                            format = "mp4"  # 输入统一转成 mp4
                         )
                         video_style_type = gr.Radio(
                             choices=["fixed", "arbitrary"],
@@ -203,7 +226,7 @@ def create_interface():
                         video_style_select = gr.Dropdown(
                             choices=list(frontend.fixed_styles.keys()),
                             label="选择固定风格",
-                            value="Van Gogh",
+                            value="Candy",
                             visible=True
                         )
                         video_style_image = gr.Image(
@@ -214,7 +237,7 @@ def create_interface():
                         video_btn = gr.Button("开始视频风格迁移", variant="primary")
 
                     with gr.Column():
-                        video_output = gr.Video(label="风格化视频")
+                        video_output = gr.File(label="风格化视频")
                         video_message = gr.Textbox(label="处理状态", interactive=False)
 
                 # 动态显示/隐藏风格选择组件
@@ -243,7 +266,7 @@ def create_interface():
 
             **🎭 固定风格图像迁移**
             - 上传内容图像，选择预训练的艺术风格
-            - 支持风格：梵高、毕加索、90年代动漫、水墨风格
+            - 支持风格：Candy、Mosaic、Rain Princess、Udnie
 
             **🔄 任意风格迁移**
             - 上传内容图像和风格参考图像

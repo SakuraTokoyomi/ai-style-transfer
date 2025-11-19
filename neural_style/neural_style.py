@@ -275,7 +275,7 @@ def process_video(args):
             
             # 转换RGB到BGR
             output_frame = cv2.cvtColor(output_image, cv2.COLOR_RGB2BGR)
-            
+
             # 写入输出视频
             out.write(output_frame)
             
