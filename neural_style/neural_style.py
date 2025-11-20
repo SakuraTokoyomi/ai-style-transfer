@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import re
+import subprocess
 
 import numpy as np
 import torch
@@ -291,9 +292,6 @@ def process_video(args):
 
             # 写入视频
             out.write(output_frame)
-
-            # 写入输出视频
-            out.write(output_frame)
             
             frame_count += 1
             pbar.update(1)
@@ -303,6 +301,47 @@ def process_video(args):
     out.release()
     print(f"Video processing completed! Output saved to: {args.output_video}")
     print(f"Processed {frame_count} frames in total")
+
+    # ------------------------------
+    # 🔊 合并音频（使用 ffmpeg 并检查返回码）
+    # ------------------------------
+    final_output = args.output_video.replace(".mp4", "_with_audio.mp4")
+
+    # 检查 ffmpeg 是否在 PATH（可选，但推荐）
+    try:
+        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    except Exception as e:
+        print("ffmpeg not found or not executable. Please install ffmpeg and add it to PATH.")
+        print("Audio merge skipped. Final file (silent):", args.output_video)
+        return
+
+    # 运行合并命令：复制视频流（来自 args.output_video）和音频流（来自 original）
+    # 如果原始没有音频，ffmpeg 会失败；我们捕获并给出友好提示
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", args.output_video,
+        "-i", args.content_video,
+        "-c", "copy",
+        "-map", "0:v:0",
+        "-map", "1:a:0",
+        final_output
+    ]
+
+    try:
+        print("Running ffmpeg to merge audio:", " ".join(cmd))
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        print("Audio merged successfully! Final output:", final_output)
+        # 可选：检查文件大小是否合理
+        if os.path.exists(final_output):
+            print("Final file size (bytes):", os.path.getsize(final_output))
+        else:
+            print("Warning: final output file not found after ffmpeg.")
+    except subprocess.CalledProcessError as e:
+        print("ffmpeg failed to merge audio. ffmpeg stderr:")
+        print(e.stderr)
+        print("Audio merge failed. You will have the silent video at:", args.output_video)
+    except Exception as e:
+        print("Unexpected error when running ffmpeg:", e)
 
 
 def main():

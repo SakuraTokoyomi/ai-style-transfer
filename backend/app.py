@@ -129,6 +129,14 @@ def run_fixed_style_video(video_path: Path, style_name: str) -> Path:
         # 不加 --accel
     ]
     subprocess.run(" ".join(cmd), shell=True, check=True)
+    # ⭐⭐ 找到带音频的文件路径
+    final_output = output_path.with_name(output_path.stem + "_with_audio.mp4")
+
+    # ⭐⭐ 如果存在，说明音频合并成功，返回带声音版本
+    if final_output.exists():
+        return final_output
+
+    # ⭐⭐ 否则仍然返回原始视频（没有声音）
     return output_path
 
 
