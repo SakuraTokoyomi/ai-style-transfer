@@ -234,9 +234,18 @@ def process_video(args):
     
     print(f"Video info: {width}x{height}, {fps:.2f} fps, {total_frames} frames")
 
+    # -------------------------
+    # 【修改位置 1】 修正宽高为 16 的倍数
+    # -------------------------
+    # 这一块必须在 VideoWriter 初始化之前
+    new_w = width - (width % 16)
+    new_h = height - (height % 16)
+
+    # -------------------------
     # 创建视频写入器
+    # -------------------------
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(args.output_video, fourcc, fps, (width, height))
+    out = cv2.VideoWriter(args.output_video, fourcc, fps, (new_w, new_h))
     
     if not out.isOpened():
         print(f"Error: Could not create output video file {args.output_video}")
@@ -252,7 +261,7 @@ def process_video(args):
     # 处理视频帧
     print("Processing video frames...")
     frame_count = 0
-    
+
     with tqdm(total=total_frames, desc="Processing video") as pbar:
         while True:
             ret, frame = cap.read()
@@ -272,9 +281,16 @@ def process_video(args):
             # 转换回图像格式
             output_image = output_tensor[0].clone().clamp(0, 255).numpy()
             output_image = output_image.transpose(1, 2, 0).astype(np.uint8)
-            
+
             # 转换RGB到BGR
             output_frame = cv2.cvtColor(output_image, cv2.COLOR_RGB2BGR)
+
+            # 修正帧尺寸
+            if output_frame.shape[1] != new_w or output_frame.shape[0] != new_h:
+                output_frame = cv2.resize(output_frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+
+            # 写入视频
+            out.write(output_frame)
 
             # 写入输出视频
             out.write(output_frame)
